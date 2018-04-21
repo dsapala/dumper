@@ -29,6 +29,10 @@ func main() {
 
 	sm := http.NewServeMux()
 
+	sm.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("ok"))
+	})
+
 	sm.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		t := time.Now()
 		ts := t.Format(TIME_FORMAT)
