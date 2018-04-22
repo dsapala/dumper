@@ -23,6 +23,11 @@ const (
 
 var addr = flag.String("addr", "127.0.0.1", "the address to bind to")
 var port = flag.Int("port", 8080, "the port to bind to")
+var readTimeout = flag.Int("read-timeout", 60, "the amount of seconds to wait before timing out on a read from the client")
+var writeTimeout = flag.Int("write-timeout", 60, "the amount of seconds to wait before timing out on a write to the client")
+var keepalive = flag.Bool("keepalive", true, "whether or not keepalives are enabled")
+var keepaliveTimeout = flag.Int("keepalive-timeout", 10, "the amount of seconds to wait before closing the client connection if it becomes idle")
+var maxBodyBytes = flag.Int64("max-body-bytes", 10<<20, "the maximum bytes allowed in the body of a request")
 
 func main() {
 	flag.Parse()
@@ -34,6 +39,9 @@ func main() {
 	})
 
 	sm.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		// limit body size
+		r.Body = http.MaxBytesReader(w, r.Body, *maxBodyBytes)
+
 		t := time.Now()
 		ts := t.Format(TIME_FORMAT)
 		yearS := t.Format("2006")
@@ -60,20 +68,21 @@ func main() {
 	})
 
 	server := &http.Server{
-		Handler: sm,
+		Handler:      sm,
+		ReadTimeout:  time.Duration(*readTimeout) * time.Second,
+		WriteTimeout: time.Duration(*writeTimeout) * time.Second,
 	}
 
-	a := server.Addr
-	if a == "" {
-		a = *addr + ":" + strconv.Itoa(*port)
+	if *keepalive {
+		server.SetKeepAlivesEnabled(true)
+		server.IdleTimeout = time.Duration(*keepaliveTimeout) * time.Second
 	}
 
-	listen, err := net.Listen("tcp", a)
+	listen, err := net.Listen("tcp", *addr+":"+strconv.Itoa(*port))
 	if err != nil {
 		panic(err)
 	}
 
-	address := listen.Addr().String()
-	log.Printf("listening at %s...\n", address)
+	log.Printf("listening at %s...\n", listen.Addr().String())
 	log.Fatal(server.Serve(listen.(*net.TCPListener)))
 }
